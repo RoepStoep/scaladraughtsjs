@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <title>Scaladraughtsjs test</title>
     <script>
-      var worker = new Worker('target/scala-2.11/scaladraughtsjs-fastopt.js');
+      var worker = new Worker('target/scala-2.12/scaladraughtsjs-opt.js');
       worker.addEventListener('message', function(e) {
         switch (e.data.topic) {
           case 'init':
@@ -20,10 +20,6 @@
           case 'move':
             console.timeEnd('move');
             console.info('move', e.data);
-            break;
-          case 'drop':
-            console.timeEnd('drop');
-            console.info('drop', e.data.payload);
             break;
           case 'threefoldTest':
             console.timeEnd('threefoldTest');
@@ -41,7 +37,7 @@
       worker.postMessage({
         topic: 'init',
         payload: {
-          variant: 'crazyhouse'
+          variant: 'frisian'
         }
       });
       function dests() {
@@ -66,21 +62,6 @@
             uciMoves: ['e2e4', 'e7e5'],
             orig: 'd2',
             dest: 'd4',
-            path: '0'
-          }
-        });
-      }
-      function drop() {
-        console.time('drop');
-        worker.postMessage({
-          topic: 'drop',
-          payload: {
-            fen: 'r6k/ppp2qbp/7P/3p1pP1/5Rp1/4Pp1n/P1P2PPP/1R1Q1RK1/bbnnbn b - - 73 38',
-            variant: 'crazyhouse',
-            pdnMoves: [],
-            uciMoves: [],
-            role: 'knight',
-            pos: 'c5',
             path: '0'
           }
         });
