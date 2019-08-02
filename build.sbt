@@ -1,6 +1,6 @@
 enablePlugins(ScalaJSPlugin)
 
-name := "scalachessJs"
+name := "scaladraughtsJs"
 
 version := "1.10"
 
@@ -26,4 +26,4 @@ scalacOptions ++= Seq(
   "-Ywarn-value-discard")
 
 emitSourceMaps := false
-scalaJSOutputWrapper := ("", "scalachessjs.Main().main();")
+scalaJSOutputWrapper := ("", "scaladraughtsjs.Main().main();")

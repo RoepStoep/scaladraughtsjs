@@ -2,9 +2,9 @@
 <html>
   <head>
     <meta charset="utf-8">
-    <title>Scalachessjs test</title>
+    <title>Scaladraughtsjs test</title>
     <script>
-      var worker = new Worker('target/scala-2.11/scalachessjs-fastopt.js');
+      var worker = new Worker('target/scala-2.11/scaladraughtsjs-fastopt.js');
       worker.addEventListener('message', function(e) {
         switch (e.data.topic) {
           case 'init':
@@ -29,9 +29,9 @@
             console.timeEnd('threefoldTest');
             console.info('threefoldTest', e.data.payload);
             break;
-          case 'pgnDump':
-            console.timeEnd('pgnDump');
-            console.info('pgnDump', e.data.payload.pgn);
+          case 'pdnDump':
+            console.timeEnd('pdnDump');
+            console.info('pdnDump', e.data.payload.pdn);
             break;
           case 'error':
             console.error(e.data.payload);
@@ -62,7 +62,7 @@
           payload: {
             fen: 'rnbqkbnr/pppp1ppp/8/4p3/4P3/8/PPPP1PPP/RNBQKBNR w KQkq - 0 2 +0+0',
             variant: 'threeCheck',
-            pgnMoves: ['e4', 'e5'],
+            pdnMoves: ['e4', 'e5'],
             uciMoves: ['e2e4', 'e7e5'],
             orig: 'd2',
             dest: 'd4',
@@ -77,7 +77,7 @@
           payload: {
             fen: 'r6k/ppp2qbp/7P/3p1pP1/5Rp1/4Pp1n/P1P2PPP/1R1Q1RK1/bbnnbn b - - 73 38',
             variant: 'crazyhouse',
-            pgnMoves: [],
+            pdnMoves: [],
             uciMoves: [],
             role: 'knight',
             pos: 'c5',
@@ -92,18 +92,18 @@
           payload: {
             initialFen: 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1',
             variant: 'standard',
-            pgnMoves: ["e4", "d6", "d4", "g6", "Nc3", "Nf6", "f4", "Bg7", "Nf3", "c5", "dxc5", "Qa5", "Bd3", "Qxc5", "Qe2", "O-O", "Be3", "Qa5", "O-O", "Bg4", "Rad1", "Nc6", "Bc4", "Nh5", "Bb3", "Bxc3", "bxc3", "Qxc3", "f5", "Nf6", "h3", "Bxf3", "Qxf3", "Na5", "Rd3", "Qc7", "Bh6", "Nxb3", "cxb3", "Qc5+", "Kh1", "Qe5", "Bxf8", "Rxf8", "Re3", "Rc8", "fxg6", "hxg6", "Qf4", "Qxf4", "Rxf4", "Nd7", "Rf2", "Ne5", "Kh2", "Rc1", "Ree2", "Nc6", "Rc2", "Re1", "Rfe2", "Ra1", "Kg3", "Kg7", "Rcd2", "Rf1", "Rf2", "Re1", "Rfe2", "Rf1", "Re3", "a6", "Rc3", "Re1", "Rc4", "Rf1", "Rdc2", "Ra1", "Rf2", "Re1", "Rfc2", "g5", "Rc1", "Re2", "R1c2", "Re1", "Rc1", "Re2", "R1c2", "Re1", "Rc1"]
+            pdnMoves: ["e4", "d6", "d4", "g6", "Nc3", "Nf6", "f4", "Bg7", "Nf3", "c5", "dxc5", "Qa5", "Bd3", "Qxc5", "Qe2", "O-O", "Be3", "Qa5", "O-O", "Bg4", "Rad1", "Nc6", "Bc4", "Nh5", "Bb3", "Bxc3", "bxc3", "Qxc3", "f5", "Nf6", "h3", "Bxf3", "Qxf3", "Na5", "Rd3", "Qc7", "Bh6", "Nxb3", "cxb3", "Qc5+", "Kh1", "Qe5", "Bxf8", "Rxf8", "Re3", "Rc8", "fxg6", "hxg6", "Qf4", "Qxf4", "Rxf4", "Nd7", "Rf2", "Ne5", "Kh2", "Rc1", "Ree2", "Nc6", "Rc2", "Re1", "Rfe2", "Ra1", "Kg3", "Kg7", "Rcd2", "Rf1", "Rf2", "Re1", "Rfe2", "Rf1", "Re3", "a6", "Rc3", "Re1", "Rc4", "Rf1", "Rdc2", "Ra1", "Rf2", "Re1", "Rfc2", "g5", "Rc1", "Re2", "R1c2", "Re1", "Rc1", "Re2", "R1c2", "Re1", "Rc1"]
           }
         });
       }
-      function pgnDump() {
-        console.time('pgnDump');
+      function pdnDump() {
+        console.time('pdnDump');
         worker.postMessage({
-          topic: 'pgnDump',
+          topic: 'pdnDump',
           payload: {
             initialFen: 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1',
             variant: 'standard',
-            pgnMoves: ["e4", "d6", "d4", "g6", "Nc3", "Nf6", "f4", "Bg7", "Nf3", "c5", "dxc5", "Qa5", "Bd3", "Qxc5", "Qe2", "O-O", "Be3", "Qa5", "O-O", "Bg4", "Rad1", "Nc6", "Bc4", "Nh5", "Bb3", "Bxc3", "bxc3", "Qxc3", "f5", "Nf6", "h3", "Bxf3", "Qxf3", "Na5", "Rd3", "Qc7", "Bh6", "Nxb3", "cxb3", "Qc5+", "Kh1", "Qe5", "Bxf8", "Rxf8", "Re3", "Rc8", "fxg6", "hxg6", "Qf4", "Qxf4", "Rxf4", "Nd7", "Rf2", "Ne5", "Kh2", "Rc1", "Ree2", "Nc6", "Rc2", "Re1", "Rfe2", "Ra1", "Kg3", "Kg7", "Rcd2", "Rf1", "Rf2", "Re1", "Rfe2", "Rf1", "Re3", "a6", "Rc3", "Re1", "Rc4", "Rf1", "Rdc2", "Ra1", "Rf2", "Re1", "Rfc2", "g5", "Rc1", "Re2", "R1c2", "Re1", "Rc1", "Re2", "R1c2", "Re1", "Rc1"],
+            pdnMoves: ["e4", "d6", "d4", "g6", "Nc3", "Nf6", "f4", "Bg7", "Nf3", "c5", "dxc5", "Qa5", "Bd3", "Qxc5", "Qe2", "O-O", "Be3", "Qa5", "O-O", "Bg4", "Rad1", "Nc6", "Bc4", "Nh5", "Bb3", "Bxc3", "bxc3", "Qxc3", "f5", "Nf6", "h3", "Bxf3", "Qxf3", "Na5", "Rd3", "Qc7", "Bh6", "Nxb3", "cxb3", "Qc5+", "Kh1", "Qe5", "Bxf8", "Rxf8", "Re3", "Rc8", "fxg6", "hxg6", "Qf4", "Qxf4", "Rxf4", "Nd7", "Rf2", "Ne5", "Kh2", "Rc1", "Ree2", "Nc6", "Rc2", "Re1", "Rfe2", "Ra1", "Kg3", "Kg7", "Rcd2", "Rf1", "Rf2", "Re1", "Rfe2", "Rf1", "Re3", "a6", "Rc3", "Re1", "Rc4", "Rf1", "Rdc2", "Ra1", "Rf2", "Re1", "Rfc2", "g5", "Rc1", "Re2", "R1c2", "Re1", "Rc1", "Re2", "R1c2", "Re1", "Rc1"],
             white: 'Georges Abitbol',
             black: 'Monsieur Hugues'
           }
@@ -112,6 +112,6 @@
     </script>
   </head>
   <body>
-    <h1>Scalachessjs test page</h1>
+    <h1>Scaladraughtsjs test page</h1>
   </body>
 </html>

@@ -1,6 +1,6 @@
 #!/bin/bash
 
-fileName=scalachessjs-opt.js
+fileName=scaladraughtsjs-opt.js
 
 rm -f target/scala-*/$fileName
 

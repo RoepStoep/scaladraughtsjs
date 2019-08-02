@@ -1,13 +1,13 @@
-package scalachessjs
+package scaladraughtsjs
 
-import chess.format.pgn.{ Pgn, Tag, Tags }
-import chess.format.{ pgn => chessPgn }
-import chess.Game
+import draughts.format.pdn.{ Pdn, Tag, Tags }
+import draughts.format.{ pdn => draughtsPdn }
+import draughts.{ DraughtsGame => Game }
 
 import scala.scalajs.js
 import js.Dynamic.{ global => g, newInstance => jsnew }
 
-object PgnDump {
+object PdnDump {
 
   def apply(
     game: Game,
@@ -15,9 +15,9 @@ object PgnDump {
     startedAtTurn: Int,
     white: Option[String] = None,
     black: Option[String] = None,
-    date: Option[String] = None): Pgn = {
+    date: Option[String] = None): Pdn = {
     val ts = tags(game, initialFen, white, black, date)
-    Pgn(ts, turns(game.pgnMoves, startedAtTurn))
+    Pdn(ts, turns(game.pdnMoves, startedAtTurn))
   }
 
   private def tags(
@@ -29,7 +29,7 @@ object PgnDump {
       val d = jsnew(g.Date)()
       Tags(List(
         Tag(_.Event, "Casual Game"),
-        Tag(_.Site, "https://lichess.org"),
+        Tag(_.Site, "https://lidraughts.org"),
         Tag(_.Date, date getOrElse d.toLocaleString()),
         Tag(_.White, white getOrElse "Anonymous"),
         Tag(_.Black, black getOrElse "Anonymous"),
@@ -41,12 +41,12 @@ object PgnDump {
       ))
   }
 
-  private def turns(moves: Vector[String], from: Int): List[chessPgn.Turn] =
+  private def turns(moves: Vector[String], from: Int): List[draughtsPdn.Turn] =
     (moves grouped 2).zipWithIndex.toList map {
-      case (moves, index) => chessPgn.Turn(
+      case (moves, index) => draughtsPdn.Turn(
         number = index + from,
-        white = moves.headOption.filter(".." !=).map(s => chessPgn.Move(s)),
-        black = moves.lift(1).map(s => chessPgn.Move(s)))
+        white = moves.headOption.filter(".." !=).map(s => draughtsPdn.Move(s, draughts.White)),
+        black = moves.lift(1).map(s => draughtsPdn.Move(s, draughts.Black)))
     } filterNot (_.isEmpty)
 
   private def result(game: Game) = game.situation.status.fold("*") { _ =>
