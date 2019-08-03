@@ -226,6 +226,7 @@ object Main extends JSApp {
       val player = game.player.name
       val dests = if (movable) possibleDests(game) else emptyDests
       val drops = possibleDrops(game)
+      val captureLength = getCaptureLength(game)
       val end = game.situation.end
       val playable = game.situation.playable(true)
       val winner = game.situation.winner.map(_.name).orUndefined
@@ -252,6 +253,19 @@ object Main extends JSApp {
       }.orUndefined
       val ply = game.turns
     }
+  }
+
+  private def getCaptureLength(game: Game): js.UndefOr[Int] = {
+    val captLen = if (game.situation.ghosts > 0) {
+      val move = game.pdnMoves(game.pdnMoves.length - 1)
+      val destPos = draughts.Pos.posAt(move.substring(move.lastIndexOf('x') + 1))
+      destPos match {
+        case Some(dest) => game.situation.captureLengthFrom(dest)
+        case _ => game.situation.allMovesCaptureLength
+      }
+    } else
+      game.situation.allMovesCaptureLength
+    captLen.orUndefined
   }
 
   private def possibleDests(game: Game): js.Dictionary[js.Array[String]] = {
@@ -296,11 +310,12 @@ trait Situation extends js.Object {
   val player: String
   val dests: js.Dictionary[js.Array[String]]
   val drops: js.UndefOr[js.Array[String]]
+  val captureLength: js.UndefOr[Int]
   val end: Boolean
   val playable: Boolean
   val status: js.UndefOr[js.Object]
   val winner: js.UndefOr[String]
-    val kingMoves: js.UndefOr[js.Object]
+  val kingMoves: js.UndefOr[js.Object]
   val pdnMoves: js.Array[String]
   val uciMoves: js.Array[String]
   val san: js.UndefOr[String]
