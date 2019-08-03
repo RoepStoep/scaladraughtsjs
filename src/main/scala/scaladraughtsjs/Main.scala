@@ -212,7 +212,7 @@ object Main extends JSApp {
     promotionRole: Option[PromotableRole] = None
   ): js.Object = {
 
-    val lmUci = lastMoveOpt.map(UciDump.move(game.board.variant)(_))
+    val lmUci = lastMoveOpt.map(_.toShortUci.uci)
 
     val mergedUciMoves = lmUci.fold(prevUciMoves) { uci =>
       prevUciMoves :+ uci
