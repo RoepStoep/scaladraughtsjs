@@ -105,7 +105,8 @@ object Main extends JSApp {
             val white = payload.white.asInstanceOf[js.UndefOr[String]].toOption
             val black = payload.black.asInstanceOf[js.UndefOr[String]].toOption
             val date = payload.date.asInstanceOf[js.UndefOr[String]].toOption
-            Replay(pdnMoves, initialFen, variant getOrElse Variant.default, false) match {
+            val finalSquare = payload.finalSquare.asInstanceOf[js.UndefOr[Boolean]].toOption
+            Replay(pdnMoves, initialFen, variant getOrElse Variant.default, finalSquare.getOrElse(false)) match {
               case Success(Reader.Result.Complete(replay)) => {
                 val pdn = PdnDump(replay.state, initialFen, replay.setup.startedAtTurn + 1, white, black, date)
                 self.postMessage(Message(
@@ -212,7 +213,7 @@ object Main extends JSApp {
     promotionRole: Option[PromotableRole] = None
   ): js.Object = {
 
-    val lmUci = lastMoveOpt.map(_.toShortUci.uci)
+    val lmUci = lastMoveOpt.map(m => if (game.situation.ghosts == 0) m.toUci.uci else m.toShortUci.uci)
 
     val mergedUciMoves = lmUci.fold(prevUciMoves) { uci =>
       prevUciMoves :+ uci
