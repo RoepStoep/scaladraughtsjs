@@ -50,6 +50,6 @@ object PdnDump {
     } filterNot (_.isEmpty)
 
   private def result(game: Game) = game.situation.status.fold("*") { _ =>
-    game.situation.winner.fold("1/2-1/2")(c => c.fold("1-0", "0-1"))
+    game.situation.winner.fold("1-1")(c => c.fold("2-0", "0-2"))
   }
 }
