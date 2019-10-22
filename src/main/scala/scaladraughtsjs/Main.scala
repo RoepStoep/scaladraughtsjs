@@ -65,7 +65,8 @@ object Main extends JSApp {
           case "threefoldTest" => {
             val pdnMoves = payload.pdnMoves.asInstanceOf[js.Array[String]].toList
             val initialFen = payload.initialFen.asInstanceOf[js.UndefOr[String]].toOption
-            Replay(pdnMoves, initialFen, variant getOrElse Variant.default, false) match {
+            val finalSquare = payload.finalSquare.asInstanceOf[js.UndefOr[Boolean]].toOption
+            Replay(pdnMoves, initialFen, variant getOrElse Variant.default, finalSquare.getOrElse(false)) match {
               case Success(Reader.Result.Complete(replay)) => {
                 self.postMessage(Message(
                   reqid = reqidOpt,
