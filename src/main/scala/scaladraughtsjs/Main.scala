@@ -93,13 +93,14 @@ object Main extends JSApp {
             val pdnMoves = pdnMovesOpt.map(_.toVector).getOrElse(Vector.empty[String])
             val uciMoves = uciMovesOpt.map(_.toList).getOrElse(List.empty[String])
             val path = payload.path.asInstanceOf[js.UndefOr[String]].toOption
+            val uci = payload.uci.asInstanceOf[js.UndefOr[String]].toOption
             (for {
               orig <- Pos.posAt(origS)
               dest <- Pos.posAt(destS)
               fen <- fen
             } yield (orig, dest, fen)) match {
               case Some((orig, dest, fen)) =>
-                move(reqidOpt, variant, fen, pdnMoves, uciMoves, orig, dest, Role.promotable(promotion), path)
+                move(reqidOpt, variant, fen, pdnMoves, uciMoves, orig, dest, Role.promotable(promotion), path, uci)
               case None =>
                 sendError(reqidOpt, data.topic, s"step topic params: $origS, $destS, $fen are not valid")
             }
@@ -174,8 +175,9 @@ object Main extends JSApp {
       ()
     }
 
-    def move(reqid: Option[String], variant: Option[Variant], fen: String, pdnMoves: Vector[String], uciMoves: List[String], orig: Pos, dest: Pos, promotion: Option[PromotableRole], path: Option[String]): Unit = {
-      Game(variant, Some(fen))(orig, dest, promotion) match {
+    def move(reqid: Option[String], variant: Option[Variant], fen: String, pdnMoves: Vector[String], uciMoves: List[String], orig: Pos, dest: Pos, promotion: Option[PromotableRole], path: Option[String], uci: Option[String]): Unit = {
+      val captures = uci.flatMap(Uci.Move.apply).flatMap(_.capture)
+      Game(variant, Some(fen))(orig, dest, promotion, draughts.MoveMetrics(), captures.isDefined, captures) match {
         case Success((newGame, move)) => {
           self.postMessage(Message(
             reqid = reqid,
