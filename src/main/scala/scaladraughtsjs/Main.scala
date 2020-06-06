@@ -35,11 +35,12 @@ object Main extends JSApp {
           case "dests" => {
             val path = payload.path.asInstanceOf[js.UndefOr[String]].toOption
             val uci = payload.uci.asInstanceOf[js.UndefOr[String]].toOption
+            val fullCapture = payload.fullCapture.asInstanceOf[js.UndefOr[Boolean]].toOption.getOrElse(false)
             val move = uci.flatMap(Uci.Move.apply)
             fen.fold {
               sendError(reqidOpt, data.topic, "fen field is required for dests topic")
             } { fen =>
-              getDests(reqidOpt, variant, fen, path, move)
+              getDests(reqidOpt, variant, fen, path, move, fullCapture)
             }
           }
           case "situation" => {
@@ -159,10 +160,10 @@ object Main extends JSApp {
       ()
     }
 
-    def getDests(reqid: Option[String], variant: Option[Variant], fen: String, path: Option[String], lastMoveUci: Option[Uci.Move] = None): Unit = {
+    def getDests(reqid: Option[String], variant: Option[Variant], fen: String, path: Option[String], lastMoveUci: Option[Uci.Move], fullCapture: Boolean): Unit = {
       val game = Game(variant, Some(fen))
       val movable = !game.situation.end
-      val dests = if (movable) possibleDests(game, lastMoveUci.map(_.dest)) else emptyDests
+      val dests = if (movable) possibleDests(game, lastMoveUci.map(_.dest), fullCapture) else emptyDests
       self.postMessage(Message(
         reqid = reqid,
         topic = "dests",
@@ -234,7 +235,7 @@ object Main extends JSApp {
       val variant = game.board.variant.key
       val fen = draughts.format.Forsyth >> game
       val player = game.player.name
-      val dests = if (movable) possibleDests(game, lmDest) else emptyDests
+      val dests = if (movable) possibleDests(game, lmDest, false) else emptyDests
       val drops = possibleDrops(game)
       val captureLength = getCaptureLength(game, lmDest)
       val end = game.situation.end
@@ -284,7 +285,7 @@ object Main extends JSApp {
     captLen.orUndefined
   }
 
-  private def possibleDests(game: Game, lastDestOpt: Option[Pos]): js.Dictionary[js.Array[String]] = {
+  private def possibleDests(game: Game, lastDestOpt: Option[Pos], fullCapture: Boolean): js.Dictionary[js.Array[String]] = {
     val dests = if (game.situation.ghosts > 0) {
       val dest = if (lastDestOpt.isDefined) lastDestOpt
       else if (game.pdnMoves.isEmpty) None
@@ -298,8 +299,11 @@ object Main extends JSApp {
         case Some(dest) => Map(dest -> game.situation.destinationsFrom(dest))
         case _ => game.situation.allDestinations
       }
-    } else
+    } else if (fullCapture) {
+      game.situation.allDestinationsFinal
+    } else {
       game.situation.allDestinations
+    }
     dests.map {
       case (pos, dests) => (pos.toString -> dests.map(_.toString).toJSArray)
     }.toJSDictionary
