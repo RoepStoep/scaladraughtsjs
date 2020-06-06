@@ -26,21 +26,21 @@ object Main extends JSApp {
         val fen = payload.fen.asInstanceOf[js.UndefOr[String]].toOption
         val variantKey = payload.variant.asInstanceOf[js.UndefOr[String]].toOption
         val variant = variantKey.flatMap(Variant(_))
+        val fullCapture = payload.fullCapture.asInstanceOf[js.UndefOr[Boolean]].toOption
 
         data.topic match {
 
           case "init" => {
-            init(reqidOpt, variant, fen)
+            init(reqidOpt, variant, fen, fullCapture)
           }
           case "dests" => {
             val path = payload.path.asInstanceOf[js.UndefOr[String]].toOption
             val uci = payload.uci.asInstanceOf[js.UndefOr[String]].toOption
-            val fullCapture = payload.fullCapture.asInstanceOf[js.UndefOr[Boolean]].toOption.getOrElse(false)
             val move = uci.flatMap(Uci.Move.apply)
             fen.fold {
               sendError(reqidOpt, data.topic, "fen field is required for dests topic")
             } { fen =>
-              getDests(reqidOpt, variant, fen, path, move, fullCapture)
+              getDests(reqidOpt, variant, fen, path, move, uci, fullCapture)
             }
           }
           case "situation" => {
@@ -55,7 +55,7 @@ object Main extends JSApp {
                 reqid = reqidOpt,
                 topic = "situation",
                 payload = jsobj(
-                  "situation" -> gameSituation(game, lastMoveUci = move),
+                  "situation" -> gameSituation(game, fullCapture.getOrElse(false), lastMove = move, lastMoveUci = uci),
                   "path" -> path.orUndefined
                 )
               ))
@@ -101,7 +101,7 @@ object Main extends JSApp {
               fen <- fen
             } yield (orig, dest, fen)) match {
               case Some((orig, dest, fen)) =>
-                move(reqidOpt, variant, fen, pdnMoves, uciMoves, orig, dest, Role.promotable(promotion), path, uci)
+                move(reqidOpt, variant, fen, pdnMoves, uciMoves, orig, dest, Role.promotable(promotion), path, uci, fullCapture)
               case None =>
                 sendError(reqidOpt, data.topic, s"step topic params: $origS, $destS, $fen are not valid")
             }
@@ -141,7 +141,7 @@ object Main extends JSApp {
       }
     })
 
-    def init(reqid: Option[String], variant: Option[Variant], fen: Option[String]): Unit = {
+    def init(reqid: Option[String], variant: Option[Variant], fen: Option[String], fullCapture: Option[Boolean]): Unit = {
       val game = Game(variant, fen)
       self.postMessage(Message(
         reqid = reqid,
@@ -153,22 +153,25 @@ object Main extends JSApp {
             val shortName = game.board.variant.shortName
             val title = game.board.variant.title
           },
-          "setup" -> gameSituation(game)
+          "setup" -> gameSituation(game, fullCapture.getOrElse(false))
         )
       ))
 
       ()
     }
 
-    def getDests(reqid: Option[String], variant: Option[Variant], fen: String, path: Option[String], lastMoveUci: Option[Uci.Move], fullCapture: Boolean): Unit = {
+    def getDests(reqid: Option[String], variant: Option[Variant], fen: String, path: Option[String], lastMove: Option[Uci.Move], lastMoveUci: Option[String], fullCapture: Option[Boolean]): Unit = {
       val game = Game(variant, Some(fen))
       val movable = !game.situation.end
-      val dests = if (movable) possibleDests(game, lastMoveUci.map(_.dest), fullCapture) else emptyDests
+      val truncatedMoves = getTruncatedMoves(game.situation, fullCapture.getOrElse(false), lastMoveUci)
+      val dests = if (movable) possibleDests(game, lastMove.map(_.dest), fullCapture.getOrElse(false), truncatedMoves) else emptyDests
+      val destsUci = truncatedMoves.map(_.values.toList.flatten.toJSArray).orUndefined
       self.postMessage(Message(
         reqid = reqid,
         topic = "dests",
         payload = jsobj(
           "dests" -> dests,
+          "destsUci" -> destsUci,
           "path" -> path.orUndefined
         )
       ))
@@ -176,15 +179,15 @@ object Main extends JSApp {
       ()
     }
 
-    def move(reqid: Option[String], variant: Option[Variant], fen: String, pdnMoves: Vector[String], uciMoves: List[String], orig: Pos, dest: Pos, promotion: Option[PromotableRole], path: Option[String], uci: Option[String]): Unit = {
+    def move(reqid: Option[String], variant: Option[Variant], fen: String, pdnMoves: Vector[String], uciMoves: List[String], orig: Pos, dest: Pos, promotion: Option[PromotableRole], path: Option[String], uci: Option[String], fullCapture: Option[Boolean]): Unit = {
       val captures = uci.flatMap(Uci.Move.apply).flatMap(_.capture)
-      Game(variant, Some(fen))(orig, dest, promotion, draughts.MoveMetrics(), captures.isDefined, captures) match {
+      Game(variant, Some(fen))(orig, dest, promotion, draughts.MoveMetrics(), captures.isDefined, captures, fullCapture.getOrElse(false)) match {
         case Success((newGame, move)) => {
           self.postMessage(Message(
             reqid = reqid,
             topic = "move",
             payload = jsobj(
-              "situation" -> gameSituation(newGame.withPdnMoves(pdnMoves ++ newGame.pdnMoves), Some(move), uciMoves, promotion),
+              "situation" -> gameSituation(newGame.withPdnMoves(pdnMoves ++ newGame.pdnMoves), fullCapture.getOrElse(false), Some(move), uciMoves, promotion),
               "path" -> path.orUndefined
             )
           ))
@@ -216,28 +219,33 @@ object Main extends JSApp {
 
   private def gameSituation(
     game: Game,
+    fullCapture: Boolean,
     lastMoveOpt: Option[Move] = None,
     prevUciMoves: List[String] = List.empty[String],
     promotionRole: Option[PromotableRole] = None,
-    lastMoveUci: Option[Uci.Move] = None,
+    lastMove: Option[Uci.Move] = None,
+    lastMoveUci: Option[String] = None,
   ): js.Object = {
 
     val lmUci = lastMoveOpt.map(m => if (game.situation.ghosts == 0) m.toUci.uci else m.toShortUci.uci)
-    val lmDest = lastMoveOpt.fold(lastMoveUci.map(_.dest))(m => Some(m.dest))
+    val lmDest = lastMoveOpt.fold(lastMove.map(_.dest))(m => Some(m.dest))
 
     val mergedUciMoves = lmUci.fold(prevUciMoves) { uci =>
       prevUciMoves :+ uci
     }
     val movable = !game.situation.end
+    val captLen = getCaptureLength(game, lmDest)
+    val truncatedMoves = getTruncatedMoves(game.situation, fullCapture, lastMoveUci)
 
     new Situation {
       val id = lastMoveOpt.fold("")(moveOrDropToUciCharPair(_).toString)
       val variant = game.board.variant.key
       val fen = draughts.format.Forsyth >> game
       val player = game.player.name
-      val dests = if (movable) possibleDests(game, lmDest, false) else emptyDests
       val drops = possibleDrops(game)
-      val captureLength = getCaptureLength(game, lmDest)
+      val captureLength = captLen.orUndefined
+      val dests = if (movable) possibleDests(game, lmDest, fullCapture, truncatedMoves) else emptyDests
+      val destsUci = truncatedMoves.map(_.values.toList.flatten.toJSArray).orUndefined
       val end = game.situation.end
       val playable = game.situation.playable(true)
       val winner = game.situation.winner.map(_.name).orUndefined
@@ -266,7 +274,7 @@ object Main extends JSApp {
     }
   }
 
-  private def getCaptureLength(game: Game, lastDestOpt: Option[Pos]): js.UndefOr[Int] = {
+  private def getCaptureLength(game: Game, lastDestOpt: Option[Pos]): Option[Int] = {
     val captLen = if (game.situation.ghosts > 0) {
       val dest = if (lastDestOpt.isDefined) lastDestOpt
       else if (game.pdnMoves.isEmpty) None
@@ -282,11 +290,26 @@ object Main extends JSApp {
       }
     } else
       game.situation.allMovesCaptureLength
-    captLen.orUndefined
+    captLen
   }
 
-  private def possibleDests(game: Game, lastDestOpt: Option[Pos], fullCapture: Boolean): js.Dictionary[js.Array[String]] = {
-    val dests = if (game.situation.ghosts > 0) {
+  private def getTruncatedMoves(sit: draughts.Situation, fullCapture: Boolean, lastUci: Option[String]): Option[Map[Pos, List[String]]] = {
+    val orig =
+      if (lastUci.exists(_.length >= 4) && sit.ghosts > 0) lastUci.flatMap { uci =>
+        Pos.posAt(uci.substring(uci.length - 2))
+      } else None
+    val captureLength: Int =
+      orig.fold(sit.allMovesCaptureLength)(sit.captureLengthFrom).getOrElse(0)
+    val truncatedMoves = if (fullCapture && captureLength > 1)
+      Some(truncateMoves(getValidMoves(sit, orig, fullCapture)))
+    else None
+    truncatedMoves
+  }
+
+  private def possibleDests(game: Game, lastDestOpt: Option[Pos], fullCapture: Boolean, truncatedMoves: Option[Map[Pos, List[String]]]): js.Dictionary[js.Array[String]] = {
+    val dests = if (truncatedMoves.isDefined) {
+      truncatedMoves.get.mapValues { _ flatMap (uci => Pos.posAt(uci.takeRight(2))) }
+    } else if (game.situation.ghosts > 0) {
       val dest = if (lastDestOpt.isDefined) lastDestOpt
       else if (game.pdnMoves.isEmpty) None
       else {
@@ -296,8 +319,8 @@ object Main extends JSApp {
         else draughts.Pos.posAt(move.substring(sep + 1))
       }
       dest match {
-        case Some(dest) => Map(dest -> game.situation.destinationsFrom(dest))
-        case _ => game.situation.allDestinations
+        case Some(dest) => Map(dest -> game.situation.movesFrom(dest, fullCapture).map(_.dest))
+        case _ =>  if (fullCapture) game.situation.allDestinationsFinal else game.situation.allDestinations
       }
     } else if (fullCapture) {
       game.situation.allDestinationsFinal
@@ -313,6 +336,68 @@ object Main extends JSApp {
     game.situation.drops.map { drops =>
       drops.map(_.toString).toJSArray
     }.orUndefined
+  }
+
+  private type BoardWithUci = (Option[draughts.Board], String)
+
+  private def uniqueUci(otherUcis: List[BoardWithUci], uci: BoardWithUci) = {
+    var i = 2
+    var unique = uci._2.slice(0, i)
+    while (i + 2 <= uci._2.length && otherUcis.exists(_._2.startsWith(unique))) {
+      i += 2
+      unique = uci._2.slice(0, i)
+    }
+    if (i == uci._2.length) uci
+    else (None, unique)
+  }
+
+  private def getValidMoves(sit: draughts.Situation, from: Option[draughts.Pos], fullCapture: Boolean) =
+    from.fold(if (fullCapture) sit.validMovesFinal else sit.validMoves) { pos =>
+      Map(pos -> sit.movesFrom(pos, fullCapture))
+    }
+
+  private def truncateMoves(validMoves: Map[draughts.Pos, List[draughts.Move]]) = {
+    var truncated = false
+    val truncatedMoves = validMoves map {
+      case (pos, moves) =>
+        if (moves.size <= 1) pos -> moves.map(m => (Some(m.after), m.toUci.uci))
+        else pos -> moves.foldLeft(List[BoardWithUci]()) { (acc, move) =>
+          val sameDestUcis = moves.filter(m => m != move && m.dest == move.dest && (m.orig == m.dest || m.after != move.after)).map(m => (Some(m.after), m.toUci.uci))
+          val uci = (Some(move.after), move.toUci.uci)
+          val newUci = if (sameDestUcis.isEmpty) uci else uniqueUci(sameDestUcis, uci)
+          if (!acc.contains(newUci)) {
+            if (newUci._2.length != uci._2.length) truncated = true
+            newUci :: acc
+          } else {
+            truncated = true
+            acc
+          }
+        }
+    }
+    (if (truncated) truncateUcis(truncatedMoves) else truncatedMoves) mapValues { _ map { _._2 } }
+  }
+
+  @scala.annotation.tailrec
+  private def truncateUcis(validUcis: Map[draughts.Pos, List[BoardWithUci]]): Map[draughts.Pos, List[BoardWithUci]] = {
+    var truncated = false
+    val truncatedUcis = validUcis map {
+      case (pos, uciList) =>
+        if (uciList.size <= 1) pos -> uciList
+        else pos -> uciList.foldLeft(List[BoardWithUci]()) { (acc, uci) =>
+          val dest = uci._2.takeRight(2)
+          val sameDestUcis = uciList.filter(u => u != uci && u._2.takeRight(2) == dest && (u._2.startsWith(dest) || (u._1.isEmpty && uci._1.isEmpty) || u._1 != uci._1))
+          val newUci = if (sameDestUcis.isEmpty) uci else uniqueUci(sameDestUcis, uci)
+          if (!acc.contains(newUci)) {
+            if (newUci._2.length != uci._2.length) truncated = true
+            newUci :: acc
+          } else {
+            truncated = true
+            acc
+          }
+        }
+    }
+    if (truncated) truncateUcis(truncatedUcis)
+    else truncatedUcis
   }
 }
 
@@ -344,6 +429,7 @@ trait Situation extends js.Object {
   val fen: String
   val player: String
   val dests: js.Dictionary[js.Array[String]]
+  val destsUci: js.UndefOr[js.Array[String]]
   val drops: js.UndefOr[js.Array[String]]
   val captureLength: js.UndefOr[Int]
   val end: Boolean
