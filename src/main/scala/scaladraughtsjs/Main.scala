@@ -96,8 +96,8 @@ object Main extends JSApp {
             val path = payload.path.asInstanceOf[js.UndefOr[String]].toOption
             val uci = payload.uci.asInstanceOf[js.UndefOr[String]].toOption
             (for {
-              orig <- Pos.posAt(origS)
-              dest <- Pos.posAt(destS)
+              orig <- draughts.Board.BoardSize.max.posAt(origS)
+              dest <- draughts.Board.BoardSize.max.posAt(destS)
               fen <- fen
             } yield (orig, dest, fen)) match {
               case Some((orig, dest, fen)) =>
@@ -275,31 +275,29 @@ object Main extends JSApp {
   }
 
   private def getCaptureLength(game: Game, lastDestOpt: Option[Pos]): Option[Int] = {
-    val captLen = if (game.situation.ghosts > 0) {
+    if (game.situation.ghosts > 0) {
       val dest = if (lastDestOpt.isDefined) lastDestOpt
       else if (game.pdnMoves.isEmpty) None
       else {
         val move = game.pdnMoves(game.pdnMoves.length - 1)
         val sep = move.lastIndexOf('x')
         if (sep == -1) None
-        else draughts.Pos.posAt(move.substring(sep + 1))
+        else draughts.Board.BoardSize.max.posAt(move.substring(sep + 1))
       }
       dest match {
         case Some(dest) => game.situation.captureLengthFrom(dest)
-        case _ => game.situation.allMovesCaptureLength
+        case _ => Some(game.situation.allMovesCaptureLength)
       }
-    } else
-      game.situation.allMovesCaptureLength
-    captLen
+    } else Some(game.situation.allMovesCaptureLength)
   }
 
   private def getTruncatedMoves(sit: draughts.Situation, fullCapture: Boolean, lastUci: Option[String]): Option[Map[Pos, List[String]]] = {
     val orig =
       if (lastUci.exists(_.length >= 4) && sit.ghosts > 0) lastUci.flatMap { uci =>
-        Pos.posAt(uci.substring(uci.length - 2))
+        draughts.Board.BoardSize.max.posAt(uci.substring(uci.length - 2))
       } else None
     val captureLength: Int =
-      orig.fold(sit.allMovesCaptureLength)(sit.captureLengthFrom).getOrElse(0)
+      orig.fold(sit.allMovesCaptureLength)(sit.captureLengthFrom(_).getOrElse(0))
     val truncatedMoves = if (fullCapture && captureLength > 1)
       Some(truncateMoves(getValidMoves(sit, orig, fullCapture)))
     else None
@@ -308,7 +306,7 @@ object Main extends JSApp {
 
   private def possibleDests(game: Game, lastDestOpt: Option[Pos], fullCapture: Boolean, truncatedMoves: Option[Map[Pos, List[String]]]): js.Dictionary[js.Array[String]] = {
     val dests = if (truncatedMoves.isDefined) {
-      truncatedMoves.get.mapValues { _ flatMap (uci => Pos.posAt(uci.takeRight(2))) }
+      truncatedMoves.get.mapValues { _ flatMap (uci => draughts.Board.BoardSize.max.posAt(uci.takeRight(2))) }
     } else if (game.situation.ghosts > 0) {
       val dest = if (lastDestOpt.isDefined) lastDestOpt
       else if (game.pdnMoves.isEmpty) None
@@ -316,7 +314,7 @@ object Main extends JSApp {
         val move = game.pdnMoves(game.pdnMoves.length - 1)
         val sep = move.lastIndexOf('x')
         if (sep == -1) None
-        else draughts.Pos.posAt(move.substring(sep + 1))
+        else draughts.Board.BoardSize.max.posAt(move.substring(sep + 1))
       }
       dest match {
         case Some(dest) => Map(dest -> game.situation.movesFrom(dest, fullCapture).map(_.dest))
