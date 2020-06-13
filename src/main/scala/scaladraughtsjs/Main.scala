@@ -113,9 +113,10 @@ object Main extends JSApp {
             val black = payload.black.asInstanceOf[js.UndefOr[String]].toOption
             val date = payload.date.asInstanceOf[js.UndefOr[String]].toOption
             val finalSquare = payload.finalSquare.asInstanceOf[js.UndefOr[Boolean]].toOption
+            val algebraic = payload.finalSquare.asInstanceOf[js.UndefOr[Boolean]].toOption
             Replay(pdnMoves, initialFen, variant getOrElse Variant.default, finalSquare.getOrElse(false)) match {
               case Success(Reader.Result.Complete(replay)) => {
-                val pdn = PdnDump(replay.state, initialFen, replay.setup.startedAtTurn + 1, white, black, date)
+                val pdn = PdnDump(replay.state, initialFen, algebraic.getOrElse(false), replay.setup.startedAtTurn + 1, white, black, date)
                 self.postMessage(Message(
                   reqid = reqidOpt,
                   topic = "pdnDump",
