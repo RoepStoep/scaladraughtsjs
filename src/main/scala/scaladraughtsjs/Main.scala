@@ -95,13 +95,18 @@ object Main extends JSApp {
             val uciMoves = uciMovesOpt.map(_.toList).getOrElse(List.empty[String])
             val path = payload.path.asInstanceOf[js.UndefOr[String]].toOption
             val uci = payload.uci.asInstanceOf[js.UndefOr[String]].toOption
+            val kingmovesW = payload.kingmovesWhite.asInstanceOf[js.UndefOr[Int]].toOption
+            val kingmovesB = payload.kingmovesBlack.asInstanceOf[js.UndefOr[Int]].toOption
+            val kingmoves = if (kingmovesW.isDefined || kingmovesB.isDefined) Some(
+              draughts.KingMoves(kingmovesW.getOrElse(0), kingmovesB.getOrElse(0))
+            ) else None
             (for {
               orig <- draughts.Board.BoardSize.max.posAt(origS)
               dest <- draughts.Board.BoardSize.max.posAt(destS)
               fen <- fen
             } yield (orig, dest, fen)) match {
               case Some((orig, dest, fen)) =>
-                move(reqidOpt, variant, fen, pdnMoves, uciMoves, orig, dest, Role.promotable(promotion), path, uci, fullCapture)
+                move(reqidOpt, variant, fen, pdnMoves, uciMoves, orig, dest, Role.promotable(promotion), path, uci, fullCapture, kingmoves)
               case None =>
                 sendError(reqidOpt, data.topic, s"step topic params: $origS, $destS, $fen are not valid")
             }
@@ -180,9 +185,11 @@ object Main extends JSApp {
       ()
     }
 
-    def move(reqid: Option[String], variant: Option[Variant], fen: String, pdnMoves: Vector[String], uciMoves: List[String], orig: Pos, dest: Pos, promotion: Option[PromotableRole], path: Option[String], uci: Option[String], fullCapture: Option[Boolean]): Unit = {
+    def move(reqid: Option[String], variant: Option[Variant], fen: String, pdnMoves: Vector[String], uciMoves: List[String], orig: Pos, dest: Pos, promotion: Option[PromotableRole], path: Option[String], uci: Option[String], fullCapture: Option[Boolean], kingMoves: Option[draughts.KingMoves]): Unit = {
       val captures = uci.flatMap(Uci.Move.apply).flatMap(_.capture)
-      Game(variant, Some(fen))(orig, dest, promotion, draughts.MoveMetrics(), captures.isDefined, captures, fullCapture.getOrElse(false)) match {
+      val parsedGame = Game(variant, Some(fen))
+      val game = if (kingMoves.isDefined) parsedGame.copy(situation = parsedGame.situation.withHistory(parsedGame.situation.history.withKingMoves(kingMoves.get))) else parsedGame
+      game(orig, dest, promotion, draughts.MoveMetrics(), captures.isDefined, captures, fullCapture.getOrElse(false)) match {
         case Success((newGame, move)) => {
           self.postMessage(Message(
             reqid = reqid,
@@ -250,7 +257,7 @@ object Main extends JSApp {
       val end = game.situation.end
       val playable = game.situation.playable(true)
       val winner = game.situation.winner.map(_.name).orUndefined
-      val kingMoves = (if (game.board.variant.key == "frisian" || game.board.variant.key == "frysk") {
+      val kingMoves = (if (game.board.variant.key == "frisian" || game.board.variant.key == "frysk" || game.board.variant.key == "russian") {
         val whiteKingMoves = game.board.history.kingMoves.whiteKing.map(_.key).getOrElse("00")
         val blackKingMoves = game.board.history.kingMoves.blackKing.map(_.key).getOrElse("00")
         Some(jsobj(
