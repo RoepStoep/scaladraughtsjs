@@ -246,7 +246,7 @@ object Main extends JSApp {
       val drops = possibleDrops(game)
       val captureLength = captLen.orUndefined
       val dests = if (movable) possibleDests(game, lmDest, fullCapture, truncatedMoves) else emptyDests
-      val destsUci = truncatedMoves.map(_.values.toList.flatten.toJSArray).orUndefined
+      val destsUci = (if (movable) truncatedMoves.map(_.values.toList.flatten.toJSArray) else None).orUndefined
       val end = game.situation.end
       val playable = game.situation.playable(true)
       val winner = game.situation.winner.map(_.name).orUndefined
