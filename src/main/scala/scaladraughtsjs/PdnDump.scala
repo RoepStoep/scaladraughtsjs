@@ -44,7 +44,7 @@ object PdnDump {
       Tag(_.White, white getOrElse "Anonymous"),
       Tag(_.Black, black getOrElse "Anonymous"),
       Tag(_.Result, result(game)),
-      Tag(_.FEN, convertedFen getOrElse "?"),
+      Tag(_.FEN, convertedFen.fold("?")(_.split(':').take(3).mkString(":"))),
       Tag(_.GameType, game.board.variant.gameType),
       Tag(_.Variant, game.board.variant.name.capitalize),
       Tag(_.Termination, game.situation.status.fold("?")(s => s.name))
