@@ -354,6 +354,7 @@ object Main extends JSApp {
       unique = uci._2.slice(0, i)
     }
     if (i == uci._2.length) uci
+    else if (i == 2) (None, uci._2.slice(0, 4))
     else (None, unique)
   }
 
@@ -370,7 +371,7 @@ object Main extends JSApp {
         else pos -> moves.foldLeft(List[BoardWithUci]()) { (acc, move) =>
           val sameDestUcis = moves.filter(m => m != move && m.dest == move.dest && (m.orig == m.dest || m.after != move.after)).map(m => (Some(m.after), m.toUci.uci))
           val uci = (Some(move.after), move.toUci.uci)
-          val newUci = if (sameDestUcis.isEmpty) uci else uniqueUci(sameDestUcis, uci)
+          val newUci = if (sameDestUcis.isEmpty && move.orig != move.dest) uci else uniqueUci(sameDestUcis, uci)
           if (!acc.contains(newUci)) {
             if (newUci._2.length != uci._2.length) truncated = true
             newUci :: acc
