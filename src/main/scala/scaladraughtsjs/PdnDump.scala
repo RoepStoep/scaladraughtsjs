@@ -1,7 +1,7 @@
 package scaladraughtsjs
 
 import draughts.format.pdn.{ Pdn, Tag, Tags }
-import draughts.format.{ pdn => draughtsPdn }
+import draughts.format.{ pdn => draughtsPdn, Forsyth }
 import draughts.{ DraughtsGame => Game }
 
 import scala.scalajs.js
@@ -21,7 +21,14 @@ object PdnDump {
     val boardPos = game.board.variant.boardSize.pos
     val isAlgebraic = algebraic && boardPos.hasAlgebraic
     val ts = tags(game, initialFen, isAlgebraic, white, black, date)
-    Pdn(ts, turns(if (isAlgebraic) san2alg(game.pdnMoves, boardPos) else game.pdnMoves, startedAtTurn))
+    val fenSituation = ts.fen.map(_.value) flatMap { f => Forsyth.<<<@(game.board.variant, f) }
+    val pdnMovesFull = game.pdnMovesConcat(true, true)
+    val pdnMoves = draughts.Replay.unambiguousPdnMoves(pdnMovesFull, ts.fen.map(_.value), game.board.variant).fold(
+      err => shortenMoves(pdnMovesFull),
+      moves => moves
+    )
+    val moves = if (fenSituation.exists(_.situation.color.black)) ".." +: pdnMoves else pdnMoves
+    Pdn(ts, turns(if (isAlgebraic) san2alg(moves, boardPos) else moves, startedAtTurn))
   }
 
   private def tags(
@@ -51,7 +58,17 @@ object PdnDump {
     ))
   }
 
-  private def san2alg(moves: Vector[String], boardPos: draughts.BoardPos) = moves map { move =>
+  private def shortenMoves(moves: Seq[String]) = moves map { move =>
+    val x1 = move.indexOf("x")
+    if (x1 == -1) move
+    else {
+      val x2 = move.lastIndexOf("x")
+      if (x2 == x1 || x2 == -1) move
+      else move.slice(0, x1) + move.slice(x2, move.length)
+    }
+  }
+
+  private def san2alg(moves: Seq[String], boardPos: draughts.BoardPos) = moves map { move =>
     val capture = move.contains('x')
     val fields = if (capture) move.split("x") else move.split("-")
     val algebraicFields = fields.flatMap { boardPos.algebraic(_) }
@@ -59,7 +76,7 @@ object PdnDump {
     algebraicFields mkString sep
   }
 
-  private def turns(moves: Vector[String], from: Int): List[draughtsPdn.Turn] =
+  private def turns(moves: Seq[String], from: Int): List[draughtsPdn.Turn] =
     (moves grouped 2).zipWithIndex.toList map {
       case (moves, index) => draughtsPdn.Turn(
         number = index + from,
