@@ -2,4 +2,6 @@
 /project/project/
 /project/target/
 /target/
-.idea
+.idea/
+.metals/
+.vscode/
